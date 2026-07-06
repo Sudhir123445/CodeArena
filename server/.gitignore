@@ -1,0 +1,5 @@
+# Online Judge Server
+
+node_modules/
+.env
+*.log

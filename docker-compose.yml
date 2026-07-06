@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: oj-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: online_judge
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ./server
+    container_name: oj-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=online_judge
+      - DB_USER=postgres
+      - DB_PASSWORD=postgrespassword
+      - JWT_SECRET=super_secret_jwt_key_12345
+      - JWT_REFRESH_SECRET=super_secret_refresh_key_12345
+      - JUDGE_WORKER_URL=http://judge:5001
+      - CLIENT_URL=http://localhost:5173
+    depends_on:
+      db:
+        condition: service_healthy
+
+  judge:
+    build:
+      context: ./judge-worker
+    container_name: oj-judge-worker
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MAIN_SERVER_URL=http://server:5000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - server
+
+  client:
+    build:
+      context: ./client
+    container_name: oj-frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+volumes:
+  pgdata:
